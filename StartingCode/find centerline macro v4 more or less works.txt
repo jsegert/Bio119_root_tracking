@@ -1,0 +1,69 @@
+setBatchMode(1); //set to 0 to see what's going on
+delay=0; //milliseconds
+roi_width=4; //width of ROI - increase for more averaging
+num_points=128; //select the number of points to generate for straightening - decrease for more resolution. Crash unless the width divindes by this value
+roi_windowsize=getWidth()/num_points;
+
+run("Set Measurements...", "  center min redirect=None decimal=1");
+id=getImageID();
+slices=nSlices();
+
+run("Duplicate...", "title=duplicate duplicate range=[]");
+setThreshold(450, 4095);
+run("Convert to Mask", "  black");
+id_dupe=getImageID();
+
+//straighten each root in a stack and make a new straightened stack
+for (n=1; n<=nSlices; n++) {
+setSlice(n);
+print("working on slice"+n);
+          
+//size the array to draw the center line appropriately
+xvals=newArray(num_points);
+yvals=newArray(num_points);
+maxvals=newArray(num_points);
+
+counter=0;
+
+//run("Subtract Background...", "rolling=50");
+
+Overlay.remove;
+
+for (i=0; i<512; i=i+roi_windowsize) {
+	makeRectangle((i-(roi_width/2)), 0, roi_width, 512);
+	wait(delay);
+	run("Measure");
+	x=getResult("XM"); //get the last result by omitting the second argument
+	y=getResult("YM");
+	max=getResult("Max");
+
+	xvals[counter]=i;
+	yvals[counter]=y;
+	maxvals[counter]=max;
+
+	// if the roi falls off the end of the root the max value should drop to 0 if the threshold was set correctly
+	if((maxvals[counter]==0) && (counter>0)) { //set position to last good position
+		yvals[counter]=yvals[counter-1];
+	}
+
+	//Use this overlay to see where the midline is being called
+	Overlay.drawRect(i, yvals[counter], 4, 4);
+	Overlay.show;
+
+	counter++;
+}
+
+selectImage(id); 
+setSlice(n);
+makeSelection("freeline", xvals, yvals);
+run("Straighten...", "line=80");
+
+//straightened image is currently open, go back to the stack
+selectImage(id_dupe); 
+
+}
+
+close();
+
+run("Images to Stack", "method=[Copy (center)] name=Stack title=[] use");
+setBatchMode(0);

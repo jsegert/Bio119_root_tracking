@@ -1,0 +1,177 @@
+// in batch mode images are not shown , comment out to see the macro run
+setBatchMode(true);
+
+//get the directory containing multiple position directories from the user
+dir = getDirectory("Choose a Directory ");
+
+//select the measurements to extract from each stack
+run("Set Measurements...", "  min integrated stack display redirect=None decimal=1");
+
+analyzeFiles(dir);
+//makeMontage();
+ 
+//find all the image sub-directories, open each as a stack, and do something to each   
+//FIX THE ORDER IN WHICH STACKS OPEN WHEN THERE ARE MORE THAN 10
+function analyzeFiles(dir) {
+
+	//get all the files (including directories) in the user selected directory
+	list = getFileList(dir);
+
+	//iterate through each file and identify sub-directories
+	for (i=0; i<list.length; i++) {
+		if (endsWith(list[i], "/")) {
+			print("found "+list[i]);
+			curdir=dir+list[i];
+			print("opening "+curdir);
+	
+			//count the number of images
+			tifcount=0;
+			curdirlist=getFileList(curdir);
+			print("found "+curdirlist.length+" files in "+curdir);
+			for (j=0; j<curdirlist.length; j++) {
+         			if (endsWith(curdirlist[j], "tif")) {
+             			//print("found a tif file"+curdirlist[j]);
+				tifcount++;
+				}
+			}
+			print("found "+tifcount+" tifs");
+			firsttif=curdir+curdirlist[0];
+			print("first tif is "+firsttif);
+	
+			//now do something to each stack
+			if(tifcount>0) {
+				//open each stack
+				run("Image Sequence...", "open=firsttif number=tifcount starting=1 increment=1 scale=100 file=[] or=[] sort");
+				
+				//measure each stack
+				run("Measure Stack");
+				
+				//apply LUT
+				//run("5_ramps");
+				
+				//set levels
+				//run("Brightness/Contrast...");
+				//setMinAndMax(0, 2047);
+				//call("ij.ImagePlus.setDefault16bitRange", 12);
+
+				//save the stack as a single file
+				//FIX FILE NAME
+				//saveAs("Tiff", "C:\\Users\\nkaplins\\Desktop\\test.tif");
+				
+				//close each stack
+				close();
+				}
+			}
+		}
+	}
+
+
+
+
+
+//makeMontage
+//makes a square montage of all open images/stacks
+function makeMontage() {
+print(nImages+" stacks are open");
+montagesize=round(sqrt(nImages));
+if(montagesize<sqrt(nImages)) {
+	montagesize++;
+	}
+print("making a "+montagesize+"x"+montagesize+" montage");
+
+
+
+//get unique image ids (all other images should be closed before running script)
+//also resize before making montage
+
+//define size of final montage
+finalsize=1240;
+//now determine size of each panel
+panelsize=round(finalsize/montagesize);
+
+c=newArray(nImages);
+for (i=1; i<=nImages; i++) {
+	selectImage(i);
+	imageid=getImageID();
+	print("found image "+imageid+" called "+getTitle);
+	c[(i-1)]=imageid;
+
+	//resize
+	depth=nSlices();
+	run("Size...", "width=panelsize height=panelsize depth=&depth constrain average interpolation=Bilinear");
+
+	}
+
+
+//now build the montage one row at a time
+
+row=1;
+column=1;
+n=nImages;
+
+while((column+((row-1)*montagesize)-1)<n) {
+        currentimage=column+((row-1)*montagesize)-1;
+        
+        	//if its the first image in a row add the first two images
+	if(column==1) {
+		print("first image in a row. processing image "+currentimage+" and "+(currentimage+1));
+		print("row "+row+" column "+column);
+        		selectImage(c[currentimage]);
+        		name1=getTitle;
+			
+			//if this is the last image don't try to add another
+			if((currentimage+1)<n) {
+				selectImage(c[currentimage+1]);
+        				name2=getTitle;
+	     			run("Combine...", "stack1=&name1 stack2=&name2");
+				column=column+2;
+				rename("row"+row);
+				}
+			else {	
+				rename("row"+row);
+				column++;
+				}
+			}
+
+	//if it is not the first in a row just add one
+	else if(column<=montagesize) {
+		print("not the first in a row. processing image "+currentimage);
+		print("row "+row+" column "+column);
+		selectImage(c[currentimage]);
+        		name1=getTitle;
+		currentrow="row"+row;
+	  	run("Combine...", "stack1=&currentrow stack2=&name1");
+		column=column+1;
+		rename("row"+row);
+		}
+
+	//if the row is done move on to the next row
+	if(column>montagesize) {
+		print("reached the end of a row, incrementing row #");
+		column=1;
+		row++;
+		print("row "+row+" column "+column);
+		}
+	
+	}
+
+//now stack the rows
+
+for(i=1; i<row; i++) {
+	currentrow="row1";
+	nextrow="row"+(i+1);
+	run("Combine...", "stack1=&currentrow stack2=&nextrow combine");
+	rename("row1");
+	}
+
+rename(dir+" montage");
+setBackgroundColor(0,0,0);
+}
+//end of makeMontage
+
+setBatchMode(false);
+
+
+
+	
+
