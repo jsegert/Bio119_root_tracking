@@ -25,6 +25,7 @@ def applyFilter(stackName):
     fs.saveAsTiff(stackName[:-4] + "-filtered(Li).tif")
 
 def straighten(stackName):
+    IJ.run("Set Measurements...", "area mean min center redirect=None decimal=3")
     imp = IJ.openImage(stackName)
     stack = imp.getImageStack()
 
@@ -36,31 +37,33 @@ def straighten(stackName):
         j = 0
 
         for k in xrange(0, 512, 2):
-            #IJ.run(image, "makeRectangle", ")
-            IJ.makeRectangle(i, 0, 4, 512)
+            IJ.makeRectangle(k, 0, 4, 512)
             IJ.run("Measure")
             table = RT.getResultsTable()
-            print "\n\n", table
+            #print "\n\n", table
 
-            #x = IJ.getResult("XM")
-            #y = IJ.getResult("YM")
+            x = table.getValue("XM", 0)
+            y = table.getValue("YM", 0)
             #maxi = IJ.getResult("Max")
+            table = []
 
-            #xvals.append(k)
-            #yvals.append(y)
+            xvals.append(k)
+            yvals.append(y)
             #maxvals.append(maxi)
 
             #if maxvals[j] == 0 and j > 0:
-            #    yvals[j] = yvals[j-1]
+                #yvals[j] = yvals[j-1]
 
-            #j += 1
+            j += 1
 
-        IJ.makeSelection("freeline", xvals, yvals)
+        print "xvals:", xvals
+        print "yvals:", yvals
+        IJ.makeSelection(xvals, yvals)
         IJ.run("Straighten...", "line = 80")
 
 
 def makeStack(stackDir, stackName = "stack"):
-    IJ.run("Image Sequence...", "open="+stackDir+" file = (img) sort")
+    IJ.run("Image Sequence...", "open="+stackDir+" file = (img_.) sort")
     imp = IJ.getImage()
     #IJ.run("8-bit")
     fs = FileSaver(imp)
