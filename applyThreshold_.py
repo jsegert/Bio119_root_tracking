@@ -3,12 +3,13 @@ from ij.io import FileSaver
 from sys import argv
 from os import path
 from ij.measure import ResultsTable as RT
+from ij.plugin import Macro_Runner as MR
 
 def main():
-    checkArgs(argv)
-    makeStack(argv[1])
-    applyFilter(argv[1]+"/stack.tif")
-    straighten(argv[1]+"/stack-filtered(Li).tif")
+    #checkArgs(argv)
+    #makeStack(argv[1])
+    #applyFilter(argv[1]+"/stack.tif")
+    straighten("/Users/juliansegert/Documents/Roots/Four_root_image_stacks/Pos01/stack-filtered(Li).tif")
 
 def applyFilter(stackName):
     imp = IJ.openImage(stackName)
@@ -25,8 +26,10 @@ def applyFilter(stackName):
     fs.saveAsTiff(stackName[:-4] + "-filtered(Li).tif")
 
 def straighten(stackName):
+    '''
     IJ.run("Set Measurements...", "area mean min center redirect=None decimal=3")
-    imp = IJ.openImage(stackName)
+    IJ.open(stackName)
+    imp = IJ.getImage()
     stack = imp.getImageStack()
 
     for i in xrange(1, imp.getNSlices()+1):
@@ -40,7 +43,6 @@ def straighten(stackName):
             IJ.makeRectangle(k, 0, 4, 512)
             IJ.run("Measure")
             table = RT.getResultsTable()
-            #print "\n\n", table
 
             x = table.getValue("XM", 0)
             y = table.getValue("YM", 0)
@@ -58,12 +60,27 @@ def straighten(stackName):
 
         print "xvals:", xvals
         print "yvals:", yvals
-        IJ.makeSelection(xvals, yvals)
-        IJ.run("Straighten...", "line = 80")
+        mr = MR()
+        IJ.run("Make Selection...", "freeline, "+str(xvals)+" ,"+ str(yvals))
+
+        #IJ.runMacro("makeSelection...", "freeline, "+str(xvals)+" ,"+ str(yvals));
+
+        #IJ.run("makeSelection(\"freeline\", xvals, yvals);")
+        #IJ.run("Straighten...", "line = 80")
+    '''
+    IJ.open(stackName)
+    imp = IJ.getImage()
+    stack = imp.getImageStack()
+    for i in xrange(150, imp.getNSlices()+1):
+        image = ImagePlus(str(i), stack.getProcessor(i))
+        IJ.runMacroFile("/Users/juliansegert/repos/Bio119_root_tracking/straightenOneImage.ijm")
+
+    fs = FileSaver(imp)
+    fs.saveAsTiff(stackName+"Straightened.tif")
 
 
 def makeStack(stackDir, stackName = "stack"):
-    IJ.run("Image Sequence...", "open="+stackDir+" file = (img_.) sort")
+    IJ.run("Image Sequence...", "open="+stackDir+" file = (\"img_.*\") sort")
     imp = IJ.getImage()
     #IJ.run("8-bit")
     fs = FileSaver(imp)
