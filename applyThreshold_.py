@@ -4,6 +4,7 @@ from sys import argv
 from os import path
 from ij.measure import ResultsTable as RT
 from ij.plugin import Macro_Runner as MR
+from ij import WindowManager as WM
 
 def main():
     #checkArgs(argv)
@@ -71,12 +72,17 @@ def straighten(stackName):
     IJ.open(stackName)
     imp = IJ.getImage()
     stack = imp.getImageStack()
-    for i in xrange(150, imp.getNSlices()+1):
+    print imp.getNSlices()
+    for i in range(1, imp.getNSlices()+1):
         image = ImagePlus(str(i), stack.getProcessor(i))
         IJ.runMacroFile("/Users/juliansegert/repos/Bio119_root_tracking/straightenOneImage.ijm")
-
-    fs = FileSaver(imp)
-    fs.saveAsTiff(stackName+"Straightened.tif")
+        newImp = WM.getCurrentImage()
+    	fs = FileSaver(newImp)
+    	fs.saveAsTiff("/Users/juliansegert/Documents/Roots/Four_root_image_stacks/Pos01/"+str(i)+".tif")
+    	newImp.close()    
+	
+    #fs = FileSaver(imp)
+    #fs.saveAsTiff(stackName+"Straightened.tif")
 
 
 def makeStack(stackDir, stackName = "stack"):

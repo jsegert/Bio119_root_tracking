@@ -17,7 +17,7 @@ id_dupe=getImageID();
 for (n=1; n<=nSlices; n++) {
 setSlice(n);
 print("working on slice"+n);
-          
+
 //size the array to draw the center line appropriately
 xvals=newArray(num_points);
 yvals=newArray(num_points);
@@ -53,13 +53,13 @@ for (i=0; i<512; i=i+roi_windowsize) {
 	counter++;
 }
 
-selectImage(id); 
+selectImage(id);
 setSlice(n);
 makeSelection("freeline", xvals, yvals);
 run("Straighten...", "line=80");
 
 //straightened image is currently open, go back to the stack
-selectImage(id_dupe); 
+selectImage(id_dupe);
 
 }
 
