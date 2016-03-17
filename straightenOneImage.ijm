@@ -2,7 +2,7 @@ macro "Straighten" {
 
     run("Set Measurements...", "  center min redirect=None decimal=1");
 
-    roi_windowsize = 1;
+    roi_windowsize = 4;
     num_points = 512/roi_windowsize;
     xvals = newArray(num_points);
     yvals = newArray(num_points);

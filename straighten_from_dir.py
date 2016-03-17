@@ -8,12 +8,39 @@ from os import path, mkdir
 from ij.io import FileSaver, DirectoryChooser
 from ij import WindowManager as wm
 from ij.gui import GenericDialog
-import shutil  
+import shutil
+from ij.measure import ResultsTable as RT
 
 def main():
     userDir = DirectoryChooser("Choose a folder")
     imgDir = userDir.getDirectory()
     import_and_straighten(imgDir)
+    measure_growth(imgDir)
+
+def measure_growth(imgDir, filename = "growth.txt"):
+    f = open(imgDir + filename, 'w')
+    f.write("Img number\tEnd point (pixels)\n")
+    IJ.run("Set Measurements...", "area mean min center redirect=None decimal=3")
+    index = "000000000"
+    filename = imgDir + "/padded" + "/img_" + index + "__000-padded.tif"
+    while path.exists(filename):
+		imp = IJ.openImage(filename)
+		imp.show()
+		IJ.run("Clear Results")
+		for i in xrange(800): #hard coded to target length for now
+			IJ.makeRectangle(i, 0, 1, 80)
+			IJ.run("Measure")
+			table = RT.getResultsTable()
+			#print "i:", i, "counter:", table.getCounter()
+			maxi = RT.getValue(table, "Max", i)
+			if maxi == 0:
+				f.write(str(int(index)) + "\t" + str(i) + "\n")
+				break
+
+		IJ.run("Close All Windows")
+		index = to_9_Digits(str(int(index)+1))
+		filename = imgDir + "/padded" + "/img_" + index + "__000-padded.tif"
+    f.close()
 
 
 def import_and_straighten(imgDir):
@@ -71,7 +98,7 @@ def make_directory(imgDir):
     		exit(0)
     	shutil.rmtree(imgDir+"/straightened")
     	mkdir(imgDir+"/straightened")
-    	
+
 
     if not path.exists(imgDir+"/padded"):
         mkdir(imgDir+"/padded")
