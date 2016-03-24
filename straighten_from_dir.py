@@ -84,6 +84,8 @@ def run_straighten(roiWindowsize = 4):
     for i in range(0, 512, roiWindowsize):
         IJ.run("Clear Results")
         IJ.makeRectangle(i, 0, roiWindowsize, 512)
+        slope = find_slope(i, i+roiWindowsize)
+        IJ.run("Rotate...", " angle="+str(slope*-1))
         IJ.run("Measure")
         table = RT.getResultsTable()
         xvals.append(i + roiWindowsize/2)
@@ -103,6 +105,28 @@ def run_straighten(roiWindowsize = 4):
     IJ.runMacro("makeLine("+coords+")")
     IJ.run("Straighten...", "line = 80")
 
+def find_pixel(x, ip):
+	
+	for i in range(512):
+		pix = ip.getPixel(x,i)
+		if pix == 255.0:
+			print x, i
+			return (x,i)
+	return None 
+
+def find_slope(first, second):
+	print first, second
+	imp = IJ.getImage()
+	ip = imp.getProcessor()#.convertToFloat() # as a copy  
+	#pixels = ip.getPixels()
+	#if first == 0: print pixels
+	first_pixel = find_pixel(first, ip)
+	second_pixel = find_pixel(second, ip)
+	if first_pixel == None or second_pixel == None:
+		return 0
+
+	return ((float(first_pixel[1])-second_pixel[1])/(first_pixel[0]-second_pixel[0]))
+	
 def to_9_Digits(num):
     if len(num) > 9:
         print "Index overflow"
