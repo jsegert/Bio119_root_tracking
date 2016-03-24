@@ -8,7 +8,7 @@ macro "Straighten" {
     yvals = newArray(num_points);
     maxvals=newArray(num_points);
 
-    counter = 0;
+    
     for (i=0; i<512; i+=roi_windowsize) {
     	makeRectangle(i, 0, roi_windowsize, 512);
     	run("Measure");

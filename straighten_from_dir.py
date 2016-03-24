@@ -52,7 +52,9 @@ def import_and_straighten(imgDir):
         imp = IJ.openImage(filename)
         IJ.run(imp, "Auto Threshold", "method=Li white") #threshold
         imp.show()
-        IJ.runMacroFile("/Users/juliansegert/repos/Bio119_root_tracking/straightenOneImage.ijm")
+        #IJ.runMacroFile("/Users/juliansegert/repos/Bio119_root_tracking/straightenOneImage.ijm")
+        run_straighten()
+
         newImp = IJ.getImage()
         fs = FileSaver(newImp)
         fs.saveAsTiff(imgDir + "/straightened" + "/img_" + index + "__000-straight.tif")
@@ -69,6 +71,37 @@ def import_and_straighten(imgDir):
         filename = filename = imgDir + "/img_" + index + "__000.tif"
 
 
+def run_straighten(roiWindowsize = 4):
+    IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
+    IJ.runMacro("//setTool(\"freeline\");")
+    IJ.run("Line Width...", "line=80");
+    numPoints = 512/roiWindowsize
+    xvals = []
+    yvals = []
+    maxvals = []
+    counter = 0
+
+    for i in range(0, 512, roiWindowsize):
+        IJ.run("Clear Results")
+        IJ.makeRectangle(i, 0, roiWindowsize, 512)
+        IJ.run("Measure")
+        table = RT.getResultsTable()
+        xvals.append(i + roiWindowsize/2)
+        yvals.append(RT.getValue(table, "YM", 0))
+        maxvals.append((RT.getValue(table, "Max", 0)))
+
+        if maxvals[counter] == 0 and counter > 0:
+            yvals[counter] = yvals[counter - 1]
+
+        counter += 1
+
+    coords = ""
+    for i in range(numPoints - 1):
+        coords += str(xvals[i]) + ", " + str(yvals[i]) +", "
+    coords += str(xvals[numPoints-1]) + ", " + str(yvals[numPoints-1])
+
+    IJ.runMacro("makeLine("+coords+")")
+    IJ.run("Straighten...", "line = 200")
 
 def to_9_Digits(num):
     if len(num) > 9:
