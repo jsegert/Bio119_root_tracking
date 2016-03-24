@@ -101,7 +101,7 @@ def run_straighten(roiWindowsize = 4):
     coords += str(xvals[numPoints-1]) + ", " + str(yvals[numPoints-1])
 
     IJ.runMacro("makeLine("+coords+")")
-    IJ.run("Straighten...", "line = 200")
+    IJ.run("Straighten...", "line = 80")
 
 def to_9_Digits(num):
     if len(num) > 9:
