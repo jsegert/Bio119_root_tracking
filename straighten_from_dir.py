@@ -10,6 +10,8 @@ from ij import WindowManager as wm
 from ij.gui import GenericDialog
 import shutil
 from ij.measure import ResultsTable as RT
+from time import sleep
+import math
 
 def main():
     userDir = DirectoryChooser("Choose a folder")
@@ -53,7 +55,8 @@ def import_and_straighten(imgDir):
         IJ.run(imp, "Auto Threshold", "method=Li white") #threshold
         imp.show()
         #IJ.runMacroFile("/Users/juliansegert/repos/Bio119_root_tracking/straightenOneImage.ijm")
-        run_straighten()
+        run_straighten(8)
+        #straighten_with_centerpoints()
 
         newImp = IJ.getImage()
         fs = FileSaver(newImp)
@@ -85,7 +88,9 @@ def run_straighten(roiWindowsize = 4):
         IJ.run("Clear Results")
         IJ.makeRectangle(i, 0, roiWindowsize, 512)
         slope = find_slope(i, i+roiWindowsize)
-        IJ.run("Rotate...", " angle="+str(slope*-1))
+        IJ.run("Rotate...", " angle="+str(-(math.degrees(slope*math.pi))))
+        print slope, math.degrees(slope)
+        #sleep(.5)
         IJ.run("Measure")
         table = RT.getResultsTable()
         xvals.append(i + roiWindowsize/2)
@@ -105,28 +110,76 @@ def run_straighten(roiWindowsize = 4):
     IJ.runMacro("makeLine("+coords+")")
     IJ.run("Straighten...", "line = 80")
 
-def find_pixel(x, ip):
-	
+def find_last_pixel(x, ip):
+	for i in range(512, 0, -1):
+		pix = ip.getPixel(x,i)
+		#print "pix:", pix
+		if pix == 255.0:
+			#print x, i
+			return (x,i)
+	return None
+
+def find_first_pixel(x, ip):
+
 	for i in range(512):
 		pix = ip.getPixel(x,i)
+		#print "pix:", pix
 		if pix == 255.0:
-			print x, i
+			#print x, i
 			return (x,i)
-	return None 
+	return None
+
+def straighten_with_centerpoints(roiWindowsize = 4):
+    IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
+    IJ.runMacro("//setTool(\"freeline\");")
+    IJ.run("Line Width...", "line=80");
+    numPoints = 512/(roiWindowsize)
+    xvals = []
+    yvals = []
+    maxvals = []
+
+    imp = IJ.getImage().getProcessor()
+
+    for i in range(0, 512, roiWindowsize):
+        topLeft = find_first_pixel(i, imp)
+        bottomLeft = find_last_pixel(i, imp)
+        print "topLeft:", topLeft, "bottomLeft:", bottomLeft
+        #sleep(.2)
+
+        if not topLeft == None and not bottomLeft == None:
+            xvals.append(i)
+            yvals.append((topLeft[1] + bottomLeft[1])/2)
+
+        topRight = find_first_pixel(i + roiWindowsize, imp)
+        bottomRight = find_last_pixel(i + roiWindowsize, imp)
+
+        if not topRight == None and not bottomRight == None:
+            xvals.append(i + roiWindowsize)
+            yvals.append((topRight[1] + bottomRight[1])/2)
+
+    coords = ""
+    print "xvals:", xvals
+    print "yvals:", yvals
+    for i in range(len(xvals)-1):
+        coords += str(xvals[i]) + ", " + str(yvals[i]) +", "
+    coords += str(xvals[len(xvals)-1]) + ", " + str(yvals[len(xvals)-1])
+
+    IJ.runMacro("makeLine("+coords+")")
+    IJ.run("Straighten...", "line = 80")
 
 def find_slope(first, second):
-	print first, second
+	#print first, second
 	imp = IJ.getImage()
-	ip = imp.getProcessor()#.convertToFloat() # as a copy  
+	ip = imp.getProcessor()#.convertToFloat() # as a copy
 	#pixels = ip.getPixels()
 	#if first == 0: print pixels
-	first_pixel = find_pixel(first, ip)
-	second_pixel = find_pixel(second, ip)
+	first_pixel = find_first_pixel(first, ip)
+	second_pixel = find_first_pixel(second, ip)
 	if first_pixel == None or second_pixel == None:
 		return 0
 
 	return ((float(first_pixel[1])-second_pixel[1])/(first_pixel[0]-second_pixel[0]))
-	
+
 def to_9_Digits(num):
     if len(num) > 9:
         print "Index overflow"
@@ -146,7 +199,7 @@ def make_directory(imgDir):
     else:
     	gd = GenericDialog("Confirm Overwrite")
     	choices = ["Yes", "No"]
-    	gd.addChoice("Overwrite \"straightened\" folder?", choices, choices[1])
+    	gd.addChoice("Overwrite \"straightened\" folder?", choices, choices[0])
     	gd.showDialog()
     	if gd.wasCanceled():
     		exit(0)
@@ -163,7 +216,7 @@ def make_directory(imgDir):
     else:
     	gd = GenericDialog("Confirm Overwrite")
     	choices = ["Yes", "No"]
-    	gd.addChoice("Overwrite \"padded\" folder?", choices, choices[1])
+    	gd.addChoice("Overwrite \"padded\" folder?", choices, choices[0])
     	gd.showDialog()
     	if gd.wasCanceled():
     		exit(0)
