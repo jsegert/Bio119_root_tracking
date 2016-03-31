@@ -12,6 +12,7 @@ import shutil
 from ij.measure import ResultsTable as RT
 from time import sleep
 import math
+from ij.plugin.frame import RoiManager
 
 def main():
     userDir = DirectoryChooser("Choose a folder")
@@ -55,7 +56,7 @@ def import_and_straighten(imgDir):
         IJ.run(imp, "Auto Threshold", "method=Li white") #threshold
         imp.show()
         #IJ.runMacroFile("/Users/juliansegert/repos/Bio119_root_tracking/straightenOneImage.ijm")
-        run_straighten(8)
+        straighten_roi_rotation()
         #straighten_with_centerpoints()
 
         newImp = IJ.getImage()
@@ -84,16 +85,24 @@ def run_straighten(roiWindowsize = 4):
     maxvals = []
     counter = 0
 
+    imp = IJ.getImage().getProcessor()
+
     for i in range(0, 512, roiWindowsize):
         IJ.run("Clear Results")
-        IJ.makeRectangle(i, 0, roiWindowsize, 512)
+        topLeft = find_first_pixel(i, imp)
+        bottomRight = find_last_pixel(i + roiWindowsize, imp)
+
+        if topLeft == None or bottomRight == None:
+            break
+        IJ.makeRectangle(i, topLeft[1], roiWindowsize, bottomRight[1] - topLeft[1])
         slope = find_slope(i, i+roiWindowsize)
-        IJ.run("Rotate...", " angle="+str(-(math.degrees(slope*math.pi))))
-        print slope, math.degrees(slope)
+        #IJ.run("Rotate...", " angle="+str(-(math.degrees(slope*math.pi))))
+        #sleep(.5)
+        #print slope, math.degrees(slope)
         #sleep(.5)
         IJ.run("Measure")
         table = RT.getResultsTable()
-        xvals.append(i + roiWindowsize/2)
+        xvals.append(RT.getValue(table, "XM", 0))
         yvals.append(RT.getValue(table, "YM", 0))
         maxvals.append((RT.getValue(table, "Max", 0)))
 
@@ -103,12 +112,35 @@ def run_straighten(roiWindowsize = 4):
         counter += 1
 
     coords = ""
-    for i in range(numPoints - 1):
+    for i in range(len(xvals)-1):
         coords += str(xvals[i]) + ", " + str(yvals[i]) +", "
-    coords += str(xvals[numPoints-1]) + ", " + str(yvals[numPoints-1])
+    coords += str(xvals[len(xvals)-1]) + ", " + str(yvals[len(xvals)-1])
 
     IJ.runMacro("makeLine("+coords+")")
     IJ.run("Straighten...", "line = 80")
+
+
+
+def straighten_roi_rotation(roiWindowsize = 4):
+    IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
+    IJ.runMacro("//setTool(\"freeline\");")
+    IJ.run("Line Width...", "line=80");
+    numPoints = 512/roiWindowsize
+    xvals = []
+    yvals = []
+    maxvals = []
+    counter = 0
+
+    imp = IJ.getImage().getProcessor()
+
+    rm = RoiManager()
+    #roi = IJ.makeRectangle(0, 0, roiWindowsize, 512)
+    roi = Roi(0,0,4,0,512,0,4,512)
+    rm.addRoi(roi)
+    print roi.getXCoordinates()
+    #while :
+        #IJ.run("Clear Results")
+
 
 def find_last_pixel(x, ip):
 	for i in range(512, 0, -1):
