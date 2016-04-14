@@ -312,24 +312,25 @@ class roiWindow_(object):
     def findTilt_(self):
         #self.tilt = find_slope(int(self.center[0] - (math.cos(math.radians(self.tilt)) * self.width/2)), int(self.center[0] + (math.cos(math.radians(self.tilt)) * self.width/2)))
         points = get_root_points(self.imp,int(self.center[0] - self.width/2), int(self.center[0] + self.width/2))
-        self.tilt = math.degrees(math.atan(get_regression(points[0], points[1])))
+        self.tilt = -math.degrees(math.atan(get_regression(points[0], points[1])))
 
     def translate_(self, dx, dy):
         IJ.runMacro("roiManager(\"translate\", " +str(dx) + ", " + str(dy) + ")")
+        self.center = (self.center[0] + dx, self.center[1] +dy)
         #self.RoiM.translate(dx, dy)
         #IJ.runMacro("roiManager(\"translate\", 4, 4)")
 
     def rotate_(self, dTheta):
-        IJ.run("Rotate...", "angle =" + str(dTheta))
+    	print dTheta
+        IJ.runMacro("run(\"Rotate...\",\"  angle=" +str(dTheta)+"\");")
 
     def advance_(self, dist):
-    	print self.tilt
         prevTilt = self.tilt
-        xDist = math.cos(math.radians(self.tilt)) * dist
-        yDist = math.sin(math.radians(self.tilt)) * dist
+        xDist = math.cos(math.radians(self.tilt)) * dist #probably wrong
+        yDist = -math.sin(math.radians(self.tilt)) * dist
         self.translate_(xDist, yDist)
         self.findTilt_()
-        self.rotate_(self.tilt - prevTilt)
+        self.rotate_(prevTilt - self.tilt)
 
     def containsRoot_(self):
         IJ.run("Clear Results")
