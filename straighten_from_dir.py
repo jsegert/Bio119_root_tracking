@@ -13,11 +13,13 @@ from ij.measure import ResultsTable as RT
 from time import sleep
 import math
 from ij.plugin.frame import RoiManager
+from ij.measure import CurveFitter
 
 def main():
     userDir = DirectoryChooser("Choose a folder")
     imgDir = userDir.getDirectory()
     import_and_straighten(imgDir)
+    #straighten_roi_rotation(imgDir)
     measure_growth(imgDir)
 
 def measure_growth(imgDir, filename = "growth.txt"):
@@ -49,13 +51,15 @@ def measure_growth(imgDir, filename = "growth.txt"):
 def import_and_straighten(imgDir):
     targetWidth = 800 #adjustable
     make_directory(imgDir)
-    index = "000000000"
+    index = "000000030"
     filename = imgDir + "/img_" + index + "__000.tif"
     while path.exists(filename):
         imp = IJ.openImage(filename)
-        IJ.run(imp, "Auto Threshold", "method=Li white") #threshold
         imp.show()
+        #IJ.run("Rotate 90 Degrees Left")
+        IJ.run(imp, "Auto Threshold", "method=Li white") #threshold
         #IJ.runMacroFile("/Users/juliansegert/repos/Bio119_root_tracking/straightenOneImage.ijm")
+        #run_straighten()
         straighten_roi_rotation()
         #straighten_with_centerpoints()
 
@@ -121,25 +125,40 @@ def run_straighten(roiWindowsize = 4):
 
 
 
-def straighten_roi_rotation(roiWindowsize = 4):
+def straighten_roi_rotation(roiWindowsize = 32):
     IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
     IJ.runMacro("//setTool(\"freeline\");")
     IJ.run("Line Width...", "line=80");
-    numPoints = 512/roiWindowsize
+    #numPoints = 512/roiWindowsize
     xvals = []
     yvals = []
     maxvals = []
     counter = 0
+    maxIters = 800/roiWindowsize
 
     imp = IJ.getImage().getProcessor()
 
     rm = RoiManager()
-    #roi = IJ.makeRectangle(0, 0, roiWindowsize, 512)
-    roi = Roi(0,0,4,0,512,0,4,512)
-    rm.addRoi(roi)
-    print roi.getXCoordinates()
-    #while :
-        #IJ.run("Clear Results")
+    roi = roiWindow_(imp, center = (roiWindowsize/2,find_first_pixel(0, imp)[1]), width = roiWindowsize, height = 80)
+    roi.findTilt_()
+    i = 0
+    while i < maxIters:
+        IJ.run("Clear Results")
+        IJ.run("Measure")
+        table = RT.getResultsTable()
+        xvals.append(RT.getValue(table, "XM", 0))
+        yvals.append(RT.getValue(table, "YM", 0))
+        maxvals.append((RT.getValue(table, "Max", 0)))
+        roi.advance_(roiWindowsize)
+        sleep(.5)
+        i += 1
+    coords = ""
+    for i in range(len(xvals)-1):
+        coords += str(xvals[i]) + ", " + str(yvals[i]) +", "
+    coords += str(xvals[len(xvals)-1]) + ", " + str(yvals[len(xvals)-1])
+
+    IJ.runMacro("makeLine("+coords+")")
+    IJ.run("Straighten...", "line = 80")
 
 
 def find_last_pixel(x, ip):
@@ -153,6 +172,7 @@ def find_last_pixel(x, ip):
 
 def find_first_pixel(x, ip):
 
+	print x
 	for i in range(512):
 		pix = ip.getPixel(x,i)
 		#print "pix:", pix
@@ -258,7 +278,66 @@ def make_directory(imgDir):
     	shutil.rmtree(imgDir+"/padded")
     	mkdir(imgDir+"/padded")
 
+def get_root_points(imp, startX, endX, startY = 0, endY = 512):
+    xVals = []
+    yVals =[]
+    for x in range(startX, endX):
+        for y in range(startY, endY):
+            if imp.getPixel(x, y) == 255:
+                xVals.append(x)
+                yVals.append(y)
+    return xVals, yVals
 
+def get_regression(xVals, yVals):
+    cf = CurveFitter(xVals, yVals)
+    cf.doFit(0) #linear
+    return cf.getParams()[1]
+
+
+class roiWindow_(object):
+    def __init__(self, imp, center = (0,0), width = 0, height = 0, tilt = 0):
+       	#self.RoiM = RoiManager()
+        self.imp = imp
+        self.center = center
+        self.width = width
+        self.height = height
+        self.tilt = tilt
+
+        self.roi = IJ.makeRectangle(center[0] - width/2, center[1] - height/2, width, height)
+        #IJ.runMacro("roiManager(\"Add\");")
+        #IJ.runMacro("roiManager(\"Select\", 0);")
+        IJ.run("Rotate...", "angle =" + str(self.tilt))
+        #sleep(60)
+
+    def findTilt_(self):
+        #self.tilt = find_slope(int(self.center[0] - (math.cos(math.radians(self.tilt)) * self.width/2)), int(self.center[0] + (math.cos(math.radians(self.tilt)) * self.width/2)))
+        points = get_root_points(self.imp,int(self.center[0] - self.width/2), int(self.center[0] + self.width/2))
+        self.tilt = math.degrees(math.atan(get_regression(points[0], points[1])))
+
+    def translate_(self, dx, dy):
+        IJ.runMacro("roiManager(\"translate\", " +str(dx) + ", " + str(dy) + ")")
+        #self.RoiM.translate(dx, dy)
+        #IJ.runMacro("roiManager(\"translate\", 4, 4)")
+
+    def rotate_(self, dTheta):
+        IJ.run("Rotate...", "angle =" + str(dTheta))
+
+    def advance_(self, dist):
+    	print self.tilt
+        prevTilt = self.tilt
+        xDist = math.cos(math.radians(self.tilt)) * dist
+        yDist = math.sin(math.radians(self.tilt)) * dist
+        self.translate_(xDist, yDist)
+        self.findTilt_()
+        self.rotate_(self.tilt - prevTilt)
+
+    def containsRoot_(self):
+        IJ.run("Clear Results")
+        IJ.run("Measure")
+        table = RT.getResultsTable()
+        if RT.getValue(table, "Max", 0) == 0:
+            return False
+        return True
 
 
 if __name__ == "__main__":
