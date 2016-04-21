@@ -125,7 +125,7 @@ def run_straighten(roiWindowsize = 4):
 
 
 
-def straighten_roi_rotation(roiWindowsize = 32):
+def straighten_roi_rotation(roiWindowsize = 4):
     IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
     IJ.runMacro("//setTool(\"freeline\");")
     IJ.run("Line Width...", "line=80");
@@ -134,12 +134,12 @@ def straighten_roi_rotation(roiWindowsize = 32):
     yvals = []
     maxvals = []
     counter = 0
-    maxIters = 800/roiWindowsize
+    maxIters = 1 #800/roiWindowsize
 
     imp = IJ.getImage().getProcessor()
 
     rm = RoiManager()
-    roi = roiWindow_(imp, center = (roiWindowsize/2,find_first_pixel(0, imp)[1]), width = roiWindowsize, height = 80)
+    roi = roiWindow_(imp, center = (roiWindowsize/2,find_first_pixel(0, imp)[1]), width = roiWindowsize, height = 512)
     roi.findTilt_()
     i = 0
     while i < maxIters and roi.containsRoot_():
@@ -149,6 +149,8 @@ def straighten_roi_rotation(roiWindowsize = 32):
         xvals.append(RT.getValue(table, "XM", 0))
         yvals.append(RT.getValue(table, "YM", 0))
         maxvals.append((RT.getValue(table, "Max", 0)))
+        exit(1)
+        roi.restoreCenter_(RT.getValue(table, "XM", 0), RT.getValue(table, "YM", 0))
         roi.advance_(roiWindowsize)
         sleep(.5)
         i += 1
@@ -172,7 +174,7 @@ def find_last_pixel(x, ip):
 
 def find_first_pixel(x, ip):
 
-	print x
+	
 	for i in range(512):
 		pix = ip.getPixel(x,i)
 		#print "pix:", pix
@@ -321,15 +323,18 @@ class roiWindow_(object):
         #IJ.runMacro("roiManager(\"translate\", 4, 4)")
 
     def rotate_(self, dTheta):
-    	print dTheta
+    	print "theta: ", dTheta
         IJ.runMacro("run(\"Rotate...\",\"  angle=" +str(dTheta)+"\");")
 
     def advance_(self, dist):
         prevTilt = self.tilt
+        print "prev tilt", prevTilt
         xDist = math.cos(math.radians(self.tilt)) * dist #probably wrong
         yDist = -math.sin(math.radians(self.tilt)) * dist
+        print "x, y dist: ", xDist, yDist
         self.translate_(xDist, yDist)
         self.findTilt_()
+        print "tilt: ", self.tilt
         self.rotate_(prevTilt - self.tilt)
 
     def containsRoot_(self):
@@ -339,6 +344,13 @@ class roiWindow_(object):
         if RT.getValue(table, "Max", 0) == 0:
             return False
         return True
+
+    def restoreCenter_(self,x,y): 
+    	print "before centering: ", x, y, self.center
+        dx = x-self.center[0]
+        dy = y-self.center[1]
+        self.translate_(dx,dy)
+        print "restore center", dx, dy, self.center
 
 
 if __name__ == "__main__":
