@@ -134,13 +134,14 @@ def straighten_roi_rotation(roiWindowsize = 4):
     yvals = []
     maxvals = []
     counter = 0
-    maxIters = 1 #800/roiWindowsize
+    maxIters = 800/roiWindowsize
 
     imp = IJ.getImage().getProcessor()
 
     rm = RoiManager()
-    roi = roiWindow_(imp, center = (roiWindowsize/2,find_first_pixel(0, imp)[1]), width = roiWindowsize, height = 512)
-    roi.findTilt_()
+    y = (find_first_pixel(0,imp)[1]+find_last_pixel(0,imp)[1])/2
+    roi = roiWindow_(imp, center = (roiWindowsize/2,y), width = roiWindowsize, height = 512)
+    #roi.findTilt_()
     i = 0
     while i < maxIters and roi.containsRoot_():
         IJ.run("Clear Results")
@@ -149,9 +150,10 @@ def straighten_roi_rotation(roiWindowsize = 4):
         xvals.append(RT.getValue(table, "XM", 0))
         yvals.append(RT.getValue(table, "YM", 0))
         maxvals.append((RT.getValue(table, "Max", 0)))
-        exit(1)
+        print roi.tilt
         roi.restoreCenter_(RT.getValue(table, "XM", 0), RT.getValue(table, "YM", 0))
         roi.advance_(roiWindowsize)
+        #exit(1)
         sleep(.5)
         i += 1
     coords = ""
@@ -304,11 +306,12 @@ class roiWindow_(object):
         self.width = width
         self.height = height
         self.tilt = tilt
+        print self.center
 
         self.roi = IJ.makeRectangle(center[0] - width/2, center[1] - height/2, width, height)
         #IJ.runMacro("roiManager(\"Add\");")
         #IJ.runMacro("roiManager(\"Select\", 0);")
-        IJ.run("Rotate...", "angle =" + str(self.tilt))
+        #IJ.run("Rotate...", "angle =" + str(self.tilt))
         #sleep(60)
 
     def findTilt_(self):
