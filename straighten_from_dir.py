@@ -142,7 +142,7 @@ def straighten_roi_rotation(roiWindowsize = 32):
     roi = roiWindow_(imp, center = (roiWindowsize/2,find_first_pixel(0, imp)[1]), width = roiWindowsize, height = 80)
     roi.findTilt_()
     i = 0
-    while i < maxIters:
+    while i < maxIters and roi.containsRoot_():
         IJ.run("Clear Results")
         IJ.run("Measure")
         table = RT.getResultsTable()
