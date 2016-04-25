@@ -14,6 +14,9 @@ from time import sleep
 import math
 from ij.plugin.frame import RoiManager
 from ij.measure import CurveFitter
+from trainableSegmentation import WekaSegmentation
+from trainableSegmentation import Weka_Segmentation
+from ij import ImagePlus
 
 def main():
     userDir = DirectoryChooser("Choose a folder")
@@ -53,13 +56,31 @@ def import_and_straighten(imgDir):
     make_directory(imgDir)
     index = "000000030"
     filename = imgDir + "/img_" + index + "__000.tif"
+    if path.exists(filename):
+        weka = Weka_segmentor(IJ.openImage(filename))
     while path.exists(filename):
+        IJ.run("Set Measurements...", "mean standard min center redirect=None decimal=3")
+        IJ.run("Clear Results")
         imp = IJ.openImage(filename)
         imp.show()
         #IJ.run("Rotate 90 Degrees Left")
-        IJ.run(imp, "Auto Threshold", "method=Li white") #threshold
-        #IJ.runMacroFile("/Users/juliansegert/repos/Bio119_root_tracking/straightenOneImage.ijm")
-        #run_straighten()
+        IJ.run("Measure")
+        table = RT.getResultsTable()
+        stddev = RT.getValue(table, "StdDev", 0)
+
+        print stddev
+        if stddev < 20:
+            print "weka"
+            segmented = weka.getThreshold(imp)
+            segmented.show()
+            IJ.run("8-bit")
+            IJ.run("Invert")
+            imp.close()
+            imp = segmented
+
+        else:
+            IJ.run(imp, "Auto Threshold", "method=Li white") #threshold
+
         straighten_roi_rotation()
         #straighten_with_centerpoints()
 
@@ -80,7 +101,7 @@ def import_and_straighten(imgDir):
 
 
 def run_straighten(roiWindowsize = 4):
-    IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
+    IJ.run("Set Measurements...", "mean standard min center redirect=None decimal=3")
     IJ.runMacro("//setTool(\"freeline\");")
     IJ.run("Line Width...", "line=80");
     numPoints = 512/roiWindowsize
@@ -115,6 +136,8 @@ def run_straighten(roiWindowsize = 4):
 
         counter += 1
 
+	if len(xvals) <=1:
+		break
     coords = ""
     for i in range(len(xvals)-1):
         coords += str(xvals[i]) + ", " + str(yvals[i]) +", "
@@ -126,7 +149,7 @@ def run_straighten(roiWindowsize = 4):
 
 
 def straighten_roi_rotation(roiWindowsize = 4):
-    IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
+    IJ.run("Set Measurements...", "mean standard min center redirect=None decimal=3")
     IJ.runMacro("//setTool(\"freeline\");")
     IJ.run("Line Width...", "line=80");
     #numPoints = 512/roiWindowsize
@@ -150,7 +173,7 @@ def straighten_roi_rotation(roiWindowsize = 4):
         xvals.append(RT.getValue(table, "XM", 0))
         yvals.append(RT.getValue(table, "YM", 0))
         maxvals.append((RT.getValue(table, "Max", 0)))
-        print roi.tilt
+        #print roi.tilt
         roi.restoreCenter_(RT.getValue(table, "XM", 0), RT.getValue(table, "YM", 0))
         roi.advance_(roiWindowsize)
         #exit(1)
@@ -176,7 +199,7 @@ def find_last_pixel(x, ip):
 
 def find_first_pixel(x, ip):
 
-	
+
 	for i in range(512):
 		pix = ip.getPixel(x,i)
 		#print "pix:", pix
@@ -199,7 +222,7 @@ def straighten_with_centerpoints(roiWindowsize = 4):
     for i in range(0, 512, roiWindowsize):
         topLeft = find_first_pixel(i, imp)
         bottomLeft = find_last_pixel(i, imp)
-        print "topLeft:", topLeft, "bottomLeft:", bottomLeft
+        #print "topLeft:", topLeft, "bottomLeft:", bottomLeft
         #sleep(.2)
 
         if not topLeft == None and not bottomLeft == None:
@@ -214,8 +237,8 @@ def straighten_with_centerpoints(roiWindowsize = 4):
             yvals.append((topRight[1] + bottomRight[1])/2)
 
     coords = ""
-    print "xvals:", xvals
-    print "yvals:", yvals
+    #print "xvals:", xvals
+    #print "yvals:", yvals
     for i in range(len(xvals)-1):
         coords += str(xvals[i]) + ", " + str(yvals[i]) +", "
     coords += str(xvals[len(xvals)-1]) + ", " + str(yvals[len(xvals)-1])
@@ -297,6 +320,19 @@ def get_regression(xVals, yVals):
     cf.doFit(0) #linear
     return cf.getParams()[1]
 
+class Weka_segmentor(object):
+    def __init__(self, imp, classifier = "/Users/juliansegert/repos/Bio119_root_tracking/bright.model"):
+        self.imp = imp
+        self.classifier = classifier
+
+        self.segmentor = WekaSegmentation(self.imp)
+        self.segmentor.loadClassifier(self.classifier)
+
+    def getThreshold(self, imp):
+        result = ImagePlus(imp.title, self.segmentor.applyClassifier(imp).getProcessor())
+        return result
+
+
 
 class roiWindow_(object):
     def __init__(self, imp, center = (0,0), width = 0, height = 0, tilt = 0):
@@ -326,18 +362,18 @@ class roiWindow_(object):
         #IJ.runMacro("roiManager(\"translate\", 4, 4)")
 
     def rotate_(self, dTheta):
-    	print "theta: ", dTheta
+    	#print "theta: ", dTheta
         IJ.runMacro("run(\"Rotate...\",\"  angle=" +str(dTheta)+"\");")
 
     def advance_(self, dist):
         prevTilt = self.tilt
-        print "prev tilt", prevTilt
+        #print "prev tilt", prevTilt
         xDist = math.cos(math.radians(self.tilt)) * dist #probably wrong
         yDist = -math.sin(math.radians(self.tilt)) * dist
-        print "x, y dist: ", xDist, yDist
+       # print "x, y dist: ", xDist, yDist
         self.translate_(xDist, yDist)
         self.findTilt_()
-        print "tilt: ", self.tilt
+        #print "tilt: ", self.tilt
         self.rotate_(prevTilt - self.tilt)
 
     def containsRoot_(self):
@@ -348,12 +384,12 @@ class roiWindow_(object):
             return False
         return True
 
-    def restoreCenter_(self,x,y): 
-    	print "before centering: ", x, y, self.center
+    def restoreCenter_(self,x,y):
+    	#print "before centering: ", x, y, self.center
         dx = x-self.center[0]
         dy = y-self.center[1]
         self.translate_(dx,dy)
-        print "restore center", dx, dy, self.center
+        #print "restore center", dx, dy, self.center
 
 
 if __name__ == "__main__":
