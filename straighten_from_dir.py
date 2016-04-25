@@ -164,18 +164,24 @@ def straighten_roi_rotation(roiWindowsize = 4):
     rm = RoiManager()
     y = (find_first_pixel(0,imp)[1]+find_last_pixel(0,imp)[1])/2
     roi = roiWindow_(imp, center = (roiWindowsize/2,y), width = roiWindowsize, height = 512)
+    xvals.append(roiWindowsize/2)
+    yvals.append(y)
+    maxvals.append(0)
     #roi.findTilt_()
-    i = 0
+    i = 1
     while i < maxIters and roi.containsRoot_():
+    	roi.advance_(roiWindowsize)
         IJ.run("Clear Results")
         IJ.run("Measure")
         table = RT.getResultsTable()
         xvals.append(RT.getValue(table, "XM", 0))
         yvals.append(RT.getValue(table, "YM", 0))
         maxvals.append((RT.getValue(table, "Max", 0)))
-        #print roi.tilt
+
         roi.restoreCenter_(RT.getValue(table, "XM", 0), RT.getValue(table, "YM", 0))
-        roi.advance_(roiWindowsize)
+        #roi.advance_(roiWindowsize)
+        print "here"
+        roi.unrotateRoot_()
         #exit(1)
         sleep(.5)
         i += 1
@@ -342,6 +348,7 @@ class roiWindow_(object):
         self.width = width
         self.height = height
         self.tilt = tilt
+        self.dTheta = 0
         print self.center
 
         self.roi = IJ.makeRectangle(center[0] - width/2, center[1] - height/2, width, height)
@@ -361,9 +368,9 @@ class roiWindow_(object):
         #self.RoiM.translate(dx, dy)
         #IJ.runMacro("roiManager(\"translate\", 4, 4)")
 
-    def rotate_(self, dTheta):
-    	#print "theta: ", dTheta
-        IJ.runMacro("run(\"Rotate...\",\"  angle=" +str(dTheta)+"\");")
+
+    def rotate_(self): # dTheta):
+        IJ.runMacro("run(\"Rotate...\",\"  angle=" +str(self.dTheta)+"\");")
 
     def advance_(self, dist):
         prevTilt = self.tilt
@@ -373,8 +380,9 @@ class roiWindow_(object):
        # print "x, y dist: ", xDist, yDist
         self.translate_(xDist, yDist)
         self.findTilt_()
-        #print "tilt: ", self.tilt
-        self.rotate_(prevTilt - self.tilt)
+        print "tilt: ", self.tilt
+        self.dTheta = prevTilt-self.tilt
+        self.rotate_() #(prevTilt - self.tilt)
 
     def containsRoot_(self):
         IJ.run("Clear Results")
@@ -389,7 +397,11 @@ class roiWindow_(object):
         dx = x-self.center[0]
         dy = y-self.center[1]
         self.translate_(dx,dy)
-        #print "restore center", dx, dy, self.center
+
+        print "restore center", dx, dy, self.center
+
+    def unrotateRoot_(self): # dTheta):
+		IJ.runMacro("run(\"Rotate...\",\"  angle=" +str((-1)*self.dTheta)+"\");")
 
 
 if __name__ == "__main__":
