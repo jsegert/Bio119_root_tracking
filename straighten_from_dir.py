@@ -53,7 +53,7 @@ def measure_growth(imgDir, filename = "growth.txt"):
 def import_and_straighten(imgDir):
     targetWidth = 800 #adjustable
     make_directory(imgDir)
-    index = "000000030"
+    index = "000000000"
     filename = imgDir + "/img_" + index + "__000.tif"
     if path.exists(filename):
         weka = Weka_segmentor(IJ.openImage(filename))
@@ -80,7 +80,8 @@ def import_and_straighten(imgDir):
 
         imp = preProcess_(imp)
 
-        straighten_roi_rotation()
+        #straighten_roi_rotation()
+        run_straighten()
 
         newImp = IJ.getImage()
         fs = FileSaver(newImp)
@@ -105,10 +106,11 @@ def preProcess_(imp):
     filteredImp = IJ.getImage()
     #imp.close()
     #IJ.run("Invert")
+    IJ.run("Invert LUT")
     return filteredImp
 
 def run_straighten(roiWindowsize = 4):
-    IJ.run("Set Measurements...", "mean standard min center redirect=None decimal=3")
+    IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
     IJ.runMacro("//setTool(\"freeline\");")
     IJ.run("Line Width...", "line=80");
     numPoints = 512/roiWindowsize
@@ -117,20 +119,12 @@ def run_straighten(roiWindowsize = 4):
     maxvals = []
     counter = 0
 
-    imp = IJ.getImage().getProcessor()
-
     for i in range(0, 512, roiWindowsize):
         IJ.run("Clear Results")
-        topLeft = find_first_pixel(i, imp)
-        bottomRight = find_last_pixel(i + roiWindowsize, imp)
-
-        if topLeft == None or bottomRight == None:
-            break
-        IJ.makeRectangle(i, topLeft[1], roiWindowsize, bottomRight[1] - topLeft[1])
-        slope = find_slope(i, i+roiWindowsize)
+        IJ.makeRectangle(i, 0, roiWindowsize, 512)
         IJ.run("Measure")
         table = RT.getResultsTable()
-        xvals.append(RT.getValue(table, "XM", 0))
+        xvals.append(i + roiWindowsize/2)
         yvals.append(RT.getValue(table, "YM", 0))
         maxvals.append((RT.getValue(table, "Max", 0)))
 
@@ -139,15 +133,13 @@ def run_straighten(roiWindowsize = 4):
 
         counter += 1
 
-	if len(xvals) <=1:
-		break
     coords = ""
-    for i in range(len(xvals)-1):
+    for i in range(numPoints - 1):
         coords += str(xvals[i]) + ", " + str(yvals[i]) +", "
-    coords += str(xvals[len(xvals)-1]) + ", " + str(yvals[len(xvals)-1])
+    coords += str(xvals[numPoints-1]) + ", " + str(yvals[numPoints-1])
 
     IJ.runMacro("makeLine("+coords+")")
-    IJ.run("Straighten...", "line = 80")
+    IJ.run("Straighten...", "line = 200")
 
 
 
