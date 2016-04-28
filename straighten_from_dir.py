@@ -22,7 +22,6 @@ def main():
     userDir = DirectoryChooser("Choose a folder")
     imgDir = userDir.getDirectory()
     import_and_straighten(imgDir)
-    #straighten_roi_rotation(imgDir)
     measure_growth(imgDir)
 
 def measure_growth(imgDir, filename = "growth.txt"):
@@ -68,9 +67,7 @@ def import_and_straighten(imgDir):
         table = RT.getResultsTable()
         stddev = RT.getValue(table, "StdDev", 0)
 
-        print stddev
         if stddev < 20:
-            print "weka"
             segmented = weka.getThreshold(imp)
             segmented.show()
             IJ.run("8-bit")
@@ -81,8 +78,9 @@ def import_and_straighten(imgDir):
         else:
             IJ.run(imp, "Auto Threshold", "method=Li white") #threshold
 
+        imp = preProcess_(imp)
+
         straighten_roi_rotation()
-        #straighten_with_centerpoints()
 
         newImp = IJ.getImage()
         fs = FileSaver(newImp)
@@ -99,6 +97,15 @@ def import_and_straighten(imgDir):
         index = to_9_Digits(str(int(index)+1))
         filename = filename = imgDir + "/img_" + index + "__000.tif"
 
+
+def preProcess_(imp):
+    IJ.runMacro("//setThreshold(1, 255);")
+    IJ.runMacro("run(\"Convert to Mask\");")
+    IJ.run("Analyze Particles...", "size=500-Infinity show=Masks")
+    filteredImp = IJ.getImage()
+    #imp.close()
+    #IJ.run("Invert")
+    return filteredImp
 
 def run_straighten(roiWindowsize = 4):
     IJ.run("Set Measurements...", "mean standard min center redirect=None decimal=3")
@@ -121,10 +128,6 @@ def run_straighten(roiWindowsize = 4):
             break
         IJ.makeRectangle(i, topLeft[1], roiWindowsize, bottomRight[1] - topLeft[1])
         slope = find_slope(i, i+roiWindowsize)
-        #IJ.run("Rotate...", " angle="+str(-(math.degrees(slope*math.pi))))
-        #sleep(.5)
-        #print slope, math.degrees(slope)
-        #sleep(.5)
         IJ.run("Measure")
         table = RT.getResultsTable()
         xvals.append(RT.getValue(table, "XM", 0))
@@ -148,7 +151,7 @@ def run_straighten(roiWindowsize = 4):
 
 
 
-def straighten_roi_rotation(roiWindowsize = 4):
+def straighten_roi_rotation(roiWindowsize = 8):
     IJ.run("Set Measurements...", "mean standard min center redirect=None decimal=3")
     IJ.runMacro("//setTool(\"freeline\");")
     IJ.run("Line Width...", "line=80");
@@ -158,32 +161,43 @@ def straighten_roi_rotation(roiWindowsize = 4):
     maxvals = []
     counter = 0
     maxIters = 800/roiWindowsize
+    minIters = 10
 
     imp = IJ.getImage().getProcessor()
 
     rm = RoiManager()
+    if find_first_pixel(0,imp) == None or find_last_pixel(0,imp)[1] == None:
+        return
     y = (find_first_pixel(0,imp)[1]+find_last_pixel(0,imp)[1])/2
     roi = roiWindow_(imp, center = (roiWindowsize/2,y), width = roiWindowsize, height = 512)
     xvals.append(roiWindowsize/2)
     yvals.append(y)
     maxvals.append(0)
-    #roi.findTilt_()
-    i = 1
+    roi.findTilt_()
+    i = 0
     while i < maxIters and roi.containsRoot_():
     	roi.advance_(roiWindowsize)
         IJ.run("Clear Results")
         IJ.run("Measure")
         table = RT.getResultsTable()
-        xvals.append(RT.getValue(table, "XM", 0))
-        yvals.append(RT.getValue(table, "YM", 0))
-        maxvals.append((RT.getValue(table, "Max", 0)))
 
-        roi.restoreCenter_(RT.getValue(table, "XM", 0), RT.getValue(table, "YM", 0))
+        x  = RT.getValue(table, "XM", 0)
+        y = RT.getValue(table, "YM", 0)
+        if imp.getPixel(int(x),int(y)) != 0:
+            xvals.append(x)
+            yvals.append(y)
+            maxvals.append((RT.getValue(table, "Max", 0)))
+
+
         #roi.advance_(roiWindowsize)
         print "here"
         roi.unrotateRoot_()
+        IJ.run("Clear Results")
+        IJ.run("Measure")
+        roi.restoreCenter_(RT.getValue(table, "XM", 0), RT.getValue(table, "YM", 0))
         #exit(1)
         sleep(.5)
+        roi.findTilt_()
         i += 1
     coords = ""
     for i in range(len(xvals)-1):
@@ -204,7 +218,6 @@ def find_last_pixel(x, ip):
 	return None
 
 def find_first_pixel(x, ip):
-
 
 	for i in range(512):
 		pix = ip.getPixel(x,i)
@@ -377,7 +390,7 @@ class roiWindow_(object):
         #print "prev tilt", prevTilt
         xDist = math.cos(math.radians(self.tilt)) * dist #probably wrong
         yDist = -math.sin(math.radians(self.tilt)) * dist
-       # print "x, y dist: ", xDist, yDist
+        print "x, y dist: ", xDist, yDist
         self.translate_(xDist, yDist)
         self.findTilt_()
         print "tilt: ", self.tilt
