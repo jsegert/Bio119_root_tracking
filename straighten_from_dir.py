@@ -24,12 +24,12 @@ def main():
     import_and_straighten(imgDir)
     measure_growth(imgDir)
 
-def measure_growth(imgDir, filename = "growth.txt"):
+def measure_growth(imgDir, filename = "Fiji_Growth.txt"):
     f = open(imgDir + filename, 'w')
     f.write("Img number\tEnd point (pixels)\n")
     IJ.run("Set Measurements...", "area mean min center redirect=None decimal=3")
     index = "000000000"
-    filename = imgDir + "/padded" + "/img_" + index + "__000-padded.tif"
+    filename = imgDir + "/binary" + "/img_" + index + "__000-padded.tif"
     while path.exists(filename):
 		imp = IJ.openImage(filename)
 		imp.show()
@@ -62,7 +62,7 @@ def import_and_straighten(imgDir):
         IJ.run("Clear Results")
         imp = IJ.openImage(filename)
         imp.show()
-        #IJ.run("Rotate 90 Degrees Left")
+        IJ.run("Rotate 90 Degrees Left")
         IJ.run("Measure")
         table = RT.getResultsTable()
         stddev = RT.getValue(table, "StdDev", 0)
@@ -81,19 +81,34 @@ def import_and_straighten(imgDir):
         imp = preProcess_(imp)
 
         #straighten_roi_rotation()
-        run_straighten()
+        coords = run_straighten()
 
         newImp = IJ.getImage()
+        """
         fs = FileSaver(newImp)
         fs.saveAsTiff(imgDir + "/straightened" + "/img_" + index + "__000-straight.tif")
+        """
 
         IJ.run("Image Padder", "pad_right="+str(targetWidth - newImp.getWidth()))
         paddedImp = IJ.getImage()
         fs = FileSaver(paddedImp)
-        fs.saveAsTiff(imgDir + "/padded" + "/img_" + index + "__000-padded.tif")
+        fs.saveAsTiff(imgDir + "/binary" + "/img_" + index + "__000-padded.tif")
 
         IJ.run("Close All Windows")
 
+        imp = IJ.openImage(filename)
+        imp.show()
+        IJ.run("Rotate 90 Degrees Left")
+        IJ.run("8-bit")
+        IJ.runMacro("makeLine("+coords+")")
+        IJ.run("Straighten...", "line = 80")
+        newImp = IJ.getImage()
+        IJ.run("Image Padder", "pad_right="+str(targetWidth - newImp.getWidth()))
+        paddedImp = IJ.getImage()
+        IJ.run("8-bit")
+        fs = FileSaver(paddedImp)
+        fs.saveAsTiff(imgDir + "/greyscale" + "/img_" + index + "__000-padded.tif")
+        IJ.run("Close All Windows")
 
         index = to_9_Digits(str(int(index)+1))
         filename = filename = imgDir + "/img_" + index + "__000.tif"
@@ -102,7 +117,7 @@ def import_and_straighten(imgDir):
 def preProcess_(imp):
     IJ.runMacro("//setThreshold(1, 255);")
     IJ.runMacro("run(\"Convert to Mask\");")
-    IJ.run("Analyze Particles...", "size=500-Infinity show=Masks")
+    IJ.run("Analyze Particles...", "size=400-Infinity show=Masks")
     filteredImp = IJ.getImage()
     #imp.close()
     #IJ.run("Invert")
@@ -139,7 +154,8 @@ def run_straighten(roiWindowsize = 4):
     coords += str(xvals[numPoints-1]) + ", " + str(yvals[numPoints-1])
 
     IJ.runMacro("makeLine("+coords+")")
-    IJ.run("Straighten...", "line = 200")
+    IJ.run("Straighten...", "line = 80")
+    return coords
 
 
 
@@ -283,38 +299,38 @@ def make_directory(imgDir):
         print "Not a valid directory"
         exit(0)
 
-    if not path.exists(imgDir+"/straightened"):
-        mkdir(imgDir+"/straightened")
+    if not path.exists(imgDir+"/binary"):
+        mkdir(imgDir+"/binary")
 
     else:
     	gd = GenericDialog("Confirm Overwrite")
     	choices = ["Yes", "No"]
-    	gd.addChoice("Overwrite \"straightened\" folder?", choices, choices[0])
+    	gd.addChoice("Overwrite \"binary\" folder?", choices, choices[0])
     	gd.showDialog()
     	if gd.wasCanceled():
     		exit(0)
     	choice = gd.getNextChoice()
     	if choice == "No":
     		exit(0)
-    	shutil.rmtree(imgDir+"/straightened")
-    	mkdir(imgDir+"/straightened")
+    	shutil.rmtree(imgDir+"/binary")
+    	mkdir(imgDir+"/binary")
 
 
-    if not path.exists(imgDir+"/padded"):
-        mkdir(imgDir+"/padded")
+    if not path.exists(imgDir+"/greyscale"):
+        mkdir(imgDir+"/greyscale")
 
     else:
     	gd = GenericDialog("Confirm Overwrite")
     	choices = ["Yes", "No"]
-    	gd.addChoice("Overwrite \"padded\" folder?", choices, choices[0])
+    	gd.addChoice("Overwrite \"greyscale\" folder?", choices, choices[0])
     	gd.showDialog()
     	if gd.wasCanceled():
     		exit(0)
     	choice = gd.getNextChoice()
     	if choice == "No":
     		exit(0)
-    	shutil.rmtree(imgDir+"/padded")
-    	mkdir(imgDir+"/padded")
+    	shutil.rmtree(imgDir+"/greyscale")
+    	mkdir(imgDir+"/greyscale")
 
 def get_root_points(imp, startX, endX, startY = 0, endY = 512):
     xVals = []
