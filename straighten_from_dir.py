@@ -25,6 +25,7 @@ def main():
     measure_growth(imgDir)
 
 def measure_growth(imgDir, filename = "Fiji_Growth.txt"):
+    """ Collects measurement data in pixels and writes to a file. Uses straightened binary images"""
     f = open(imgDir + filename, 'w')
     f.write("Img number\tEnd point (pixels)\n")
     IJ.run("Set Measurements...", "area mean min center redirect=None decimal=3")
@@ -44,13 +45,18 @@ def measure_growth(imgDir, filename = "Fiji_Growth.txt"):
 				f.write(str(int(index)) + "\t" + str(i) + "\n")
 				break
 
-		IJ.run("Close All Windows")
+		IJ.runMacro("while (nImages>0) {selectImage(nImages);close();}")
 		index = to_9_Digits(str(int(index)+1))
 		filename = imgDir + "/padded" + "/img_" + index + "__000-padded.tif"
     f.close()
 
 
 def import_and_straighten(imgDir):
+    """
+    Core function. Opens images in given directory in series and calls a straightening function.
+    Thresholds using weka if stddev of pixel intensities is too high (bright field), otherwise uses
+    histogram based segmentation.
+    """
     targetWidth = 800 #adjustable
     make_directory(imgDir)
     index = "000000000"
@@ -94,8 +100,9 @@ def import_and_straighten(imgDir):
         fs = FileSaver(paddedImp)
         fs.saveAsTiff(imgDir + "/binary" + "/img_" + index + "__000-padded.tif")
 
-        IJ.run("Close All Windows")
+        IJ.runMacro("while (nImages>0) {selectImage(nImages);close();}")
 
+        #use same centerline for original greyscale image
         imp = IJ.openImage(filename)
         imp.show()
         IJ.run("Rotate 90 Degrees Left")
@@ -108,13 +115,15 @@ def import_and_straighten(imgDir):
         IJ.run("8-bit")
         fs = FileSaver(paddedImp)
         fs.saveAsTiff(imgDir + "/greyscale" + "/img_" + index + "__000-padded.tif")
-        IJ.run("Close All Windows")
+        IJ.runMacro("while (nImages>0) {selectImage(nImages);close();}")
 
         index = to_9_Digits(str(int(index)+1))
         filename = filename = imgDir + "/img_" + index + "__000.tif"
 
 
 def preProcess_(imp):
+    """ Noise filtering step. Removes particles other than the root after segmentation.
+    Takes a pointer to an ImagePlus, returns pointer to new ImagePlus. """
     IJ.runMacro("//setThreshold(1, 255);")
     IJ.runMacro("run(\"Convert to Mask\");")
     IJ.run("Analyze Particles...", "size=400-Infinity show=Masks")
@@ -125,6 +134,8 @@ def preProcess_(imp):
     return filteredImp
 
 def run_straighten(roiWindowsize = 4):
+    """ Original straightening function based on Nick's macro. Used in final version.
+    Returns coordinate string used to make centerline. """
     IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
     IJ.runMacro("//setTool(\"freeline\");")
     IJ.run("Line Width...", "line=80");
@@ -160,6 +171,9 @@ def run_straighten(roiWindowsize = 4):
 
 
 def straighten_roi_rotation(roiWindowsize = 8):
+    """ Root straightening function that rotates ROI to follow root slope.
+    Does not work properly.
+    """
     IJ.run("Set Measurements...", "mean standard min center redirect=None decimal=3")
     IJ.runMacro("//setTool(\"freeline\");")
     IJ.run("Line Width...", "line=80");
@@ -217,25 +231,27 @@ def straighten_roi_rotation(roiWindowsize = 8):
 
 
 def find_last_pixel(x, ip):
-	for i in range(512, 0, -1):
+    """ Helper function to find slope. Returns last non-zero point in given x dimension."""
+    for i in range(512, 0, -1):
 		pix = ip.getPixel(x,i)
 		#print "pix:", pix
 		if pix == 255.0:
 			#print x, i
 			return (x,i)
-	return None
+    return None
 
 def find_first_pixel(x, ip):
-
-	for i in range(512):
+    """ Helper function to find slope. Returns first non-zero point in given x dimension."""
+    for i in range(512):
 		pix = ip.getPixel(x,i)
 		#print "pix:", pix
 		if pix == 255.0:
 			#print x, i
 			return (x,i)
-	return None
+    return None
 
 def straighten_with_centerpoints(roiWindowsize = 4):
+    """ Failed straightening method utilizing ROI rotation. """
     IJ.run("Set Measurements...", "mean min center redirect=None decimal=3")
     IJ.runMacro("//setTool(\"freeline\");")
     IJ.run("Line Width...", "line=80");
@@ -274,19 +290,21 @@ def straighten_with_centerpoints(roiWindowsize = 4):
     IJ.run("Straighten...", "line = 80")
 
 def find_slope(first, second):
+    """ Returns slope of the interval between first and second x coords"""
 	#print first, second
-	imp = IJ.getImage()
-	ip = imp.getProcessor()#.convertToFloat() # as a copy
+    imp = IJ.getImage()
+    ip = imp.getProcessor()#.convertToFloat() # as a copy
 	#pixels = ip.getPixels()
 	#if first == 0: print pixels
-	first_pixel = find_first_pixel(first, ip)
-	second_pixel = find_first_pixel(second, ip)
-	if first_pixel == None or second_pixel == None:
-		return 0
+    first_pixel = find_first_pixel(first, ip)
+    second_pixel = find_first_pixel(second, ip)
+    if first_pixel == None or second_pixel == None:
+	       return 0
 
-	return ((float(first_pixel[1])-second_pixel[1])/(first_pixel[0]-second_pixel[0]))
+    return ((float(first_pixel[1])-second_pixel[1])/(first_pixel[0]-second_pixel[0]))
 
 def to_9_Digits(num):
+    """ Helper function for iterating over images. Pads index to 9 digits with high-order zeros."""
     if len(num) > 9:
         print "Index overflow"
         exit(1)
@@ -295,6 +313,7 @@ def to_9_Digits(num):
 
 
 def make_directory(imgDir):
+    """ Makes the necessary output directories or overwrites current ones. """
     if not path.exists(imgDir) or not path.isdir(imgDir):
         print "Not a valid directory"
         exit(0)
@@ -333,6 +352,8 @@ def make_directory(imgDir):
     	mkdir(imgDir+"/greyscale")
 
 def get_root_points(imp, startX, endX, startY = 0, endY = 512):
+    """ Returns lists of corresponding x and y values that contain non-zero pixels in
+    a given interval """
     xVals = []
     yVals =[]
     for x in range(startX, endX):
@@ -343,11 +364,13 @@ def get_root_points(imp, startX, endX, startY = 0, endY = 512):
     return xVals, yVals
 
 def get_regression(xVals, yVals):
+    """ Runs a linear regression on x and y values and returns slope """
     cf = CurveFitter(xVals, yVals)
     cf.doFit(0) #linear
     return cf.getParams()[1]
 
 class Weka_segmentor(object):
+    """ Wrapper class for trainable Weka segmentation. """
     def __init__(self, imp, classifier = "/Users/juliansegert/repos/Bio119_root_tracking/bright.model"):
         self.imp = imp
         self.classifier = classifier
@@ -362,6 +385,7 @@ class Weka_segmentor(object):
 
 
 class roiWindow_(object):
+    """ Class to encapsulate moving ROI in straighten_roi_rotation.  """
     def __init__(self, imp, center = (0,0), width = 0, height = 0, tilt = 0):
        	#self.RoiM = RoiManager()
         self.imp = imp
